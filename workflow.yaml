@@ -1,0 +1,53 @@
+main:
+    params: [args]
+    steps:
+    - init:
+        assign:
+          - repository: ${"projects/" + args.gcp_project + "/locations/us-central1/repositories/" + args.repository}
+          - default_schema: ${args.dataset}
+          - branch: ${args.branch}
+          - full_refresh: ${default(map.get(args, "full_refresh"), false)}
+    - createCompilationResult:
+        call: http.post
+        args:
+            url: ${"https://dataform.googleapis.com/v1beta1/" + repository + "/compilationResults"}
+            auth:
+                type: OAuth2
+            body:
+                gitCommitish: ${branch}
+                codeCompilationConfig:
+                    defaultSchema: ${default_schema}
+        result: compilationResult
+    - createWorkflowInvocation:
+        call: http.post
+        args:
+            url: ${"https://dataform.googleapis.com/v1beta1/" + repository + "/workflowInvocations"}
+            auth:
+                type: OAuth2
+            body:
+                compilationResult: ${compilationResult.body.name}
+                invocationConfig:
+                    fullyRefreshIncrementalTablesEnabled: ${full_refresh}
+        result: workflowInvocation
+    - getInvocationResult:
+        call: http.get
+        args:
+            url:  ${"https://dataform.googleapis.com/v1beta1/" + workflowInvocation.body.name}
+            auth:
+                type: OAuth2
+        result: invocationResult
+    - waitForResult:
+        call: sys.sleep
+        args:
+            seconds: 10
+        next: checkInvocationResult
+    - checkInvocationResult:
+        switch:
+            - condition: ${invocationResult.body.state == "RUNNING"}
+              next: getInvocationResult
+            - condition: ${invocationResult.body.state == "SUCCEEDED"}
+              next: end
+            - condition: ${invocationResult.body.state == "CANCELLED" or invocationResult.body.state == "FAILED" or invocationResult.body.state == "CANCELING"}
+              steps:
+                - raiseException:
+                    raise: ${"Error while running workflow " +  invocationResult.body.name + " " + invocationResult.body.state}

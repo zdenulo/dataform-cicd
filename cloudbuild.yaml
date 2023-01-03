@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: 'gcloud'
+    args: [ 'beta', 'workflows', 'run', '${_WORKFLOW_NAME}',  '--data',
+            '{"repository": "${_REPOSITORY}", "dataset": "${_DATASET}", "branch": "${_BRANCH}", "full_refresh": "${_FULL_REFRESH}", "gcp_project": "$PROJECT_ID"}',
+            '--call-log-level', 'log-all-calls'
+    ]
