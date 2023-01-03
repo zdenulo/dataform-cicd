@@ -1,1 +1,2 @@
 google-cloud-dataform==0.3.0
+google-cloud-workflows==1.8.0
